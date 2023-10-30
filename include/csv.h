@@ -1,5 +1,5 @@
-#ifndef CSV_H_
-#define CSV_H_
+#ifndef CSVEE_CSV_H_
+#define CSVEE_CSV_H_
 
 #include "common.h"
 
@@ -39,5 +39,5 @@ void csv_destroy(CSV *csv);
 /// @brief Return descriptive error string of the last failed operation
 const char *csv_strerror(void);
 
-#endif // CSV_H_
+#endif // CSVEE_CSV_H_
 
