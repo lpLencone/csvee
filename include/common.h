@@ -1,5 +1,5 @@
-#ifndef CSV_COMMON_H_
-#define CSV_COMMON_H_
+#ifndef CSVEE_COMMON_H_
+#define CSVEE_COMMON_H_
 
 #include <assert.h>
 #include <errno.h>
@@ -70,4 +70,4 @@ char *read_to_string(const char *filename);
         (da)->capacity = 0; \
     } while (0)
 
-#endif // CSV_COMMON_H_
+#endif // CSVEE_COMMON_H_
