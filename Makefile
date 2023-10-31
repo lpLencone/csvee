@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -Wall -Wextra --pedantic -g
+CFLAGS := -Wall -Wextra -g 
 INCLUDE := -Iinclude
 BIN := bin
 SRC := $(shell find src -type f)

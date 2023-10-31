@@ -3,6 +3,8 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +19,8 @@
 #define panic_if(cond) do { if (cond) panic(); } while (0)
 
 char *read_to_string(const char *filename);
+size_t bit_count_high(uint32_t bits);
+size_t bit_min_amount(uint32_t bits);
 
 #ifndef DA_INIT_CAPACITY
 #  define DA_INIT_CAPACITY  8

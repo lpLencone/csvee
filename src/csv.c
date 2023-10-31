@@ -28,36 +28,29 @@ struct {
         csv_status.line = __LINE__; \
     } while (0)
 
-CSV *csv_create(const char *filename, ...)
-{
-    if (access(filename, F_OK) == 0) {
-        csv_status_set(CSV_Status_Logic_Err, "Provided filename is unavailable");
-        return NULL;
-    }
+#define csv_logic_err(message) csv_status_set(CSV_Status_Logic_Err, message)
+#define csv_libc_err() csv_status_set(CSV_Status_Libc_Err, strerror(errno))
 
+CSV *csv_create(size_t column_count, ...)
+{
     CSV *csv = malloc(sizeof(CSV));
     if (csv == NULL) {
-        csv_status_set(CSV_Status_Libc_Err, strerror(errno));
+        csv_libc_err();
         return NULL;
     }
-    csv->filename = filename;
     csv->row_count = 0;
 
     size_t count = 0;
     va_list ap;
-    va_start(ap, filename);
-    const char *column_id;
-    while ((column_id = va_arg(ap, const char *)) != NULL) {
+    va_start(ap, column_count);
+    while (count < column_count) {
+        const char *column_id = va_arg(ap, const char *);
         struct _CSV_Column csv_col = {0};
         csv_col.id = column_id;
-        da_append(&csv->columns, &csv_col); // gotta remove this assertion deal
+        da_append(&csv->columns, &csv_col);
         count++;
     }
     va_end(ap);
-
-    if (count == 0) {
-        csv_status_set(CSV_Status_Logic_Err, "There must be at least one column");
-    }
 
     if (csv_status.c != CSV_Status_Ok) {
         if (csv) {
@@ -68,55 +61,83 @@ CSV *csv_create(const char *filename, ...)
     return csv;
 }
 
-int csv_insert(CSV *csv, ...)
+void csv_destroy(CSV *const csv)
+{
+    da_end(&csv->columns);
+    free(csv);
+}
+
+bool csv_append_mask(CSV *const csv, uint32_t mask, ...)
 {
     size_t count = 0;
-    const char *value = NULL;
 
     va_list ap;
-    va_start(ap, csv);
+    va_start(ap, mask);
     while (count < csv->columns.count) {
-        value = va_arg(ap, const char *);
-        if (count < csv->columns.count) {
-            struct _CSV_Column *csv_col = &csv->columns.data[count];
-            da_append(csv_col, &value);
+        const char *value = NULL;
+        struct _CSV_Column *csv_col = &csv->columns.data[count];
+        if ((mask >> count) & 1) {
+            value = va_arg(ap, const char *);
         }
-        
+        da_append(csv_col, &value);
         count++;
     }
     va_end(ap);
 
     csv->row_count++;
-
-    if (count != csv->columns.count) {
-        csv_status_set(CSV_Status_Logic_Err, "Number of items mismatches number of columns");
-        return 1;
-    }
-
-    return 0;
+    return true;
 }
 
-void csv_display(CSV *csv)
+bool csv_get_row_mask(const CSV *const csv, size_t row, uint32_t mask, const char **values)
 {
-    for (size_t i = 0; i < csv->columns.count; i++) {
-        struct _CSV_Column csv_col = csv->columns.data[i];
-        printf("%s,", csv_col.id);
+    if (values == NULL) {
+        csv_logic_err("The \"values\" parameter must contain a valid address to store the values");
+        return false;
     }
-    putchar('\n');
+
+    if (row >= csv->row_count) {
+        csv_logic_err("Row index exceeds number of rows in CSV");
+        return false;
+    }
+
+    if (bit_min_amount(mask) > csv->columns.count) {
+        csv_logic_err("The number of bits in \"mask\" is greater than the number of columns");
+        return false;
+    }
+
+    for (size_t i = 0; i < bit_count_high(mask); i++) {
+        values[i] = csv->columns.data[i].data[row];
+    }
+
+    return true;
+}
+
+void csv_fprint(const CSV *const csv, FILE *const context)
+{
+    size_t i;
+    for (i = 0; i + 1 < csv->columns.count; i++) {
+        fprintf(context, "%s,", csv->columns.data[i].id);
+    }
+    fprintf(context, "%s", csv->columns.data[i].id);
+    fputc('\n', context);
 
     for (size_t i = 0; i < csv->row_count; i++) {
-        for (size_t j = 0; j < csv->columns.count; j++) {
-            struct _CSV_Column csv_col = csv->columns.data[j];
-            printf("%s,", csv_col.data[i]);
-        }
-        putchar('\n');
-    }
-}
+        size_t j;
+        const char *data = NULL;
 
-void csv_destroy(CSV *csv)
-{
-    da_end(&csv->columns);
-    free(csv);
+        for (j = 0; j + 1 < csv->columns.count; j++) {
+            data = csv->columns.data[j].data[i];
+            if (data) {
+                fprintf(context, "%s", data);
+            }
+            fprintf(context, ",");
+        }
+        data = csv->columns.data[j].data[i];
+        if (data) {
+            fprintf(context, "%s", data);
+        }
+        fputc('\n', context);
+    }
 }
 
 const char *csv_strerror(void)
@@ -132,3 +153,12 @@ const char *csv_strerror(void)
             assert(false && "unreachable");
     }
 }
+
+
+
+
+
+
+
+
+
