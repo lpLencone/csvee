@@ -36,7 +36,7 @@ void test3(void)
     csv_append_array(csv, data);
     data[2] = "sabe muito";
     csv_append_array(csv, data);
-    FILE *context = fopen("filename.csv", "w");
+    FILE *context = fopen("bin/filename.csv", "w");
     csv_save(csv, context);
     fclose(context);
     csv_destroy(csv);
@@ -44,7 +44,7 @@ void test3(void)
 
 void test4(void)
 {
-    char *const cstr = read_to_cstr("filename.csv");
+    char *const cstr = read_to_cstr("bin/filename.csv");
     CSV *csv = csv_from_cstr(cstr);
     csv_print(csv);
     csv_destroy(csv);
@@ -53,7 +53,7 @@ void test4(void)
 
 void test5(void)
 {
-    char *const cstr = read_to_cstr("filename.csv");
+    char *const cstr = read_to_cstr("bin/filename.csv");
     CSV *csv = csv_from_cstr(cstr);
 
     const char *values[4] = {};
@@ -68,7 +68,7 @@ void test5(void)
 
 void test6(void)
 {
-    char *const cstr = read_to_cstr("filename.csv");
+    char *const cstr = read_to_cstr("bin/filename.csv");
     CSV *csv = csv_from_cstr(cstr);
 
     const char *col_names[] = {"column", "faggot", "bacdef"};
@@ -95,7 +95,7 @@ void test7(void)
 
 void test8(void)
 {
-    char *const cstr = read_to_cstr("filename.csv");
+    char *const cstr = read_to_cstr("bin/filename.csv");
     CSV *csv = csv_from_cstr(cstr);
 
     const char *col_names[] = {"column", "faggot", "bacdef"};
