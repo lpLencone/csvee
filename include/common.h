@@ -10,6 +10,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define NONNULL __attribute__((nonnull))
+
 #define eprint(fmt, ...) fprintf(stderr, fmt __VA_OPT__(,) __VA_ARGS__)
 #define panic() \
     do { \
@@ -18,9 +20,10 @@
     } while (0)
 #define panic_if(cond) do { if (cond) panic(); } while (0)
 
-char *read_to_string(const char *filename);
+char *read_to_cstr(const char *filename);
 size_t bit_count_high(uint32_t bits);
 size_t bit_min_amount(uint32_t bits);
+uint32_t powu32(uint32_t a, uint32_t b);
 
 #ifndef DA_INIT_CAPACITY
 #  define DA_INIT_CAPACITY  8

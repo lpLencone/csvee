@@ -4,119 +4,117 @@
 #include "common.h"
 #include "csv.h"
 
-#define csvcp(p) \
-    do { \
-        if (p == NULL) { \
-            retcode = 1; \
-            eprint("%d: CSV Error: %s\n", __LINE__, csv_strerror()); \
-            goto finally; \
-        } \
-    } while (0)
-
-#define csvcc(result) \
-    do { \
-        if (!result) { \
-            retcode = 1; \
-            eprint("%d: CSV Error: %s\n", __LINE__, csv_strerror()); \
-            goto finally; \
-        } \
-    } while (0)
-
-int test0(void)
+void test0(void)
 {
-    int retcode = 0;
+    const char *col_names[] = {"abcdef", "column", "deeznuts", "bruh"};
+    CSV *csv = csv_with_columns(4, col_names);
+    csv_print(csv);
+    csv_destroy(csv);
+}
 
-    CSV *csv = csv_create(3, "column0", "column1", "column2");
-    csvcp(csv);
+void test1(void)
+{
+    CSV *csv = csv_create(3, "bacdef", "column", "deeznuts");
+    csv_print(csv);
+    csv_destroy(csv);
+}
 
-    csvcc(csv_append_row(csv, "value0", "value1", "value2checc"));
-    csvcc(csv_append_row(csv, "value0deez", "value1", "value2"));
-    csvcc(csv_append_row(csv, "value0", "value1nuts", "value2"));
+void test2(void)
+{
+    CSV *csv = csv_create(3, "bacdef", "column", "deeznuts");
+
+    const char *data[] = {"1", "2", "0"};
+    csv_append_array(csv, data); 
+    csv_print(csv);
+    csv_destroy(csv);
+}
+
+void test3(void)
+{
+    CSV *csv = csv_create(4, "bacdef", "column", "deeznuts", "faggot");
+    const char *data[] = {"pajeeet", "sober", "aphorititties", "lul"};
+    csv_append_array(csv, data);
+    data[2] = "sabe muito";
+    csv_append_array(csv, data);
+    FILE *context = fopen("filename.csv", "w");
+    csv_save(csv, context);
+    fclose(context);
+    csv_destroy(csv);
+}
+
+void test4(void)
+{
+    char *const cstr = read_to_cstr("filename.csv");
+    CSV *csv = csv_from_cstr(cstr);
+    csv_print(csv);
+    csv_destroy(csv);
+    free(cstr);
+}
+
+void test5(void)
+{
+    char *const cstr = read_to_cstr("filename.csv");
+    CSV *csv = csv_from_cstr(cstr);
+
+    const char *values[4] = {};
+    csv_get_row(csv, 1, values);
+    for (size_t i = 0; i < 4; i++) {
+        printf("%s\n", values[i]);
+    }
+
+    csv_destroy(csv);
+    free(cstr);
+}
+
+void test6(void)
+{
+    char *const cstr = read_to_cstr("filename.csv");
+    CSV *csv = csv_from_cstr(cstr);
+
+    const char *col_names[] = {"column", "faggot", "bacdef"};
+    const char *values[3] = {};
+    csv_get_row_array(csv, 1, 3, col_names, values);
+    for (size_t i = 0; i < 3; i++) {
+        printf("%s : %s\n", col_names[i], values[i]);
+    }
+
+    csv_destroy(csv);
+    free(cstr);
+}
+
+void test7(void)
+{
+    CSV *csv = csv_create(4, "bacdef", "column", "deeznuts", "faggot");
+    const char *data[] = {"pajeeet", "sober", "aphorititties", "lul"};
+    csv_append_array(csv, data);
+    data[2] = "sabe muito";
+    csv_insert_array(csv, data, 0);
+    csv_print(csv);
+    csv_destroy(csv);
+}
+
+void test8(void)
+{
+    char *const cstr = read_to_cstr("filename.csv");
+    CSV *csv = csv_from_cstr(cstr);
+
+    const char *col_names[] = {"column", "faggot", "bacdef"};
+    const char *values[] = {"majeet", "esphing", "marcone"};
+    csv_edit_row_array(csv, 1, 3, col_names, values);
 
     csv_print(csv);
 
-finally:
-    if (csv) {
-        csv_destroy(csv);
-    }
-    return retcode;
+    csv_destroy(csv);
+    free(cstr);
 }
 
-int test1(void)
+void test9(void)
 {
-    int retcode = 0;
 
-    CSV *csv = csv_create(4, "abcdef", "column", "deeznuts", "bruh");
-    csvcp(csv);
-
-    csvcc(csv_append_mask(csv, 0b1111, "shacks", "snacks", "sfacks", "monkeys"));
-    csvcc(csv_append_mask(csv, 0b1011, "abadu", "lemao", "marks"));
-    csvcc(csv_append_mask(csv, 0b1110, "seenoo", "estrid", "falukt"));
-
-    csv_print(csv);
-
-finally:
-    if (csv) {
-        csv_destroy(csv);
-    }
-    return retcode;
-}
-
-int test2(void)
-{
-    int retcode = 0;
-
-    CSV *csv = csv_create(4, "abcdef", "column", "deeznuts", "bruh");
-    csvcp(csv);
-
-    csvcc(csv_append_mask(csv, 0b1111, "shacks", "snacks", "sfacks", "monkeys"));
-    csvcc(csv_append_mask(csv, 0b1011, "abadu", "lemao", "marks"));
-    csvcc(csv_append_mask(csv, 0b1110, "seenoo", "estrid", "falukt"));
-
-    uint32_t mask = 0b1010;
-    const char *values[2];
-    csv_get_row_mask(csv, 1, mask, values);
-    csvcp(values);
-    for (size_t i = 0; i < bit_count_high(mask); i++) {
-        printf("%s,", values[i]);
-    }
-    putchar('\n');
-
-finally:
-    if (csv) {
-        csv_destroy(csv);
-    }
-    return retcode;
-}
-
-int test3(void)
-{
-    int retcode = 0;
-    FILE *context = NULL;
-
-    CSV *csv = csv_create(4, "abcdef", "column", "deeznuts", "bruh");
-    csvcp(csv);
-
-    csvcc(csv_append_mask(csv, 0b1111, "shacks", "snacks", "sfacks", "monkeys"));
-    csvcc(csv_append_mask(csv, 0b1011, "abadu", "lemao", "marks"));
-    csvcc(csv_append_mask(csv, 0b1110, "seenoo", "estrid", "falukt"));
-
-    context = fopen("filename.csv", "w");
-    if (context != NULL) {
-        csv_save(csv, context);
-    }
-
-finally:
-    if (csv) {
-        csv_destroy(csv);
-    }
-    if (context) {
-        fclose(context);
-    }
-    return retcode;
 }
 
 int main(void)
 {
-    return test3();
+    test8();
+    return 0;
 }

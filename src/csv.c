@@ -9,107 +9,179 @@
 #include <string.h>
 #include <unistd.h>
 
-typedef da(const char *) CSV_Column;
+#define CSV_INIT_COLUMN_CAPACITY 8;
 
-struct {
-    enum {
-        CSV_Status_Ok = 0,
-        CSV_Status_Logic_Err,
-        CSV_Status_Libc_Err,
-    } c;
-    const char *msg;
-    size_t line;
-} csv_status;
-
-#define csv_status_set(code, message) \
-    do { \
-        csv_status.c = code; \
-        csv_status.msg = message; \
-        csv_status.line = __LINE__; \
-    } while (0)
-
-#define csv_logic_err(message) csv_status_set(CSV_Status_Logic_Err, message)
-#define csv_libc_err() csv_status_set(CSV_Status_Libc_Err, strerror(errno))
-
-CSV *csv_create(size_t column_count, ...)
+CSV *csv_with_columns(size_t ncols, const char **col_names)
 {
-    CSV *csv = malloc(sizeof(CSV));
-    if (csv == NULL) {
-        csv_libc_err();
-        return NULL;
-    }
-    csv->row_count = 0;
+    assert(ncols > 0);
 
-    size_t count = 0;
-    va_list ap;
-    va_start(ap, column_count);
-    while (count < column_count) {
-        const char *column_id = va_arg(ap, const char *);
-        struct _CSV_Column csv_col = {0};
-        csv_col.id = column_id;
+    CSV *csv = calloc(1, sizeof(CSV));
+    assert(csv != NULL);
+
+    struct _CSV_Column csv_col = {0};
+    for (size_t i = 0; i < ncols; i++) {
+        csv_col.id = strdup(col_names[i]);
         da_append(&csv->columns, &csv_col);
-        count++;
+    }
+
+    return csv;
+}
+
+CSV *csv_create(size_t ncols, ...)
+{
+    da(const char *) cols = {0};
+
+    va_list ap;
+    va_start(ap, ncols);
+    for (size_t i = 0; i < ncols; i++) {
+        const char *col_name = va_arg(ap, const char *);
+        da_append(&cols, &col_name);
     }
     va_end(ap);
 
-    if (csv_status.c != CSV_Status_Ok) {
-        if (csv) {
-            free(csv);
-            return NULL;
+    CSV *csv = csv_with_columns(ncols, cols.data);
+
+    da_end(&cols);
+    return csv;
+}
+
+CSV *csv_from_cstr(const char *const cstr)
+{
+    char *cstr_dup = strdup(cstr);
+    assert(cstr_dup != NULL);
+
+    CSV *csv = NULL;
+    char *body = NULL;
+    const char *line_delim = "\n";
+    const char *data_delim = ",";
+    char *saveptr = NULL;
+
+    { // Create CSV with columns
+        char *header = strtok_r(cstr_dup, line_delim, &body);
+        size_t ncols = 0;
+        da(const char *) cols = {0};
+        char *col_name = strtok_r(header, data_delim, &saveptr);
+        while (col_name != NULL) {
+            ncols++;
+            da_append(&cols, &col_name);
+            col_name = strtok_r(saveptr, data_delim, &saveptr);
+        }
+        csv = csv_with_columns(ncols, cols.data);
+        da_end(&cols);
+    }
+
+    { // Insert data into CSV
+        char *nextline = NULL;
+        char *line = strtok_r(body, line_delim, &nextline);
+        // `strdup` is necessary to use the strsep function
+        // `strtok` won't work instead because I need the zero-length strings where there are adjecent delimiter bytes.
+        while (line != NULL) {
+            line = strdup(line);
+            assert(line != NULL);
+
+            // Since `strsep` modifies where the string pointer points to, it is necessary to save the address of the start of the allocated duplicated string to free it later.
+            char *save_line_ptr = line;
+            da(const char *) data = {0};
+
+            char *datum = strsep(&line, data_delim);
+            while (datum != NULL) {
+                da_append(&data, &datum);
+                datum = strsep(&line, data_delim);
+            }
+            csv_append_array(csv, data.data);
+            da_end(&data);
+            free(save_line_ptr);
+
+            line = strtok_r(nextline, line_delim, &nextline);
         }
     }
+    
+    free(cstr_dup);
     return csv;
 }
 
 void csv_destroy(CSV *const csv)
 {
+    for (size_t i = 0; i < csv->columns.count; i++) {
+        struct _CSV_Column *col = &csv->columns.data[i];
+        free(col->id);
+        if (col->data != NULL) {
+            for (size_t j = 0; j < col->count; j++) {
+                free(col->data[j]);
+            }
+            da_end(col);
+        }
+    }
     da_end(&csv->columns);
     free(csv);
 }
 
-bool csv_append_mask(CSV *const csv, uint32_t mask, ...)
+void csv_insert_array(CSV *const csv, const char *const data[csv->columns.count], size_t row)
 {
-    size_t count = 0;
-
-    va_list ap;
-    va_start(ap, mask);
-    while (count < csv->columns.count) {
-        const char *value = NULL;
-        struct _CSV_Column *csv_col = &csv->columns.data[count];
-        if ((mask >> count) & 1) {
-            value = va_arg(ap, const char *);
+    for (size_t i = 0; i < csv->columns.count; i++) {
+        struct _CSV_Column *col = &csv->columns.data[i];
+        if (col->capacity == 0) {
+            col->capacity = CSV_INIT_COLUMN_CAPACITY;
+            col->data = malloc(col->capacity * sizeof(char *));
         }
-        da_append(csv_col, &value);
-        count++;
-    }
-    va_end(ap);
 
+        if (col->count + 1 < col->capacity) {
+            col->capacity *= 2;
+            col->data = realloc(col->data, col->capacity * sizeof(char *));
+            assert(col->data != NULL);
+        }
+
+        memmove(col->data + row + 1, col->data + row, sizeof(char *));
+
+        if (data[i] != NULL) {
+            col->data[row] = strdup(data[i]);
+            assert(col->data[row] != NULL);
+        }
+        col->count++;
+    }
     csv->row_count++;
-    return true;
 }
 
-bool csv_get_row_mask(const CSV *const csv, size_t row, uint32_t mask, const char **values)
+void csv_get_row(const CSV *const csv, size_t row, const char *values[csv->columns.count])
 {
-    if (values == NULL) {
-        csv_logic_err("The \"values\" parameter must contain a valid address to store the values");
-        return false;
-    }
-
-    if (row >= csv->row_count) {
-        csv_logic_err("Row index exceeds number of rows in CSV");
-        return false;
-    }
-
-    if (bit_min_amount(mask) > csv->columns.count) {
-        csv_logic_err("The number of bits in \"mask\" is greater than the number of columns");
-        return false;
-    }
-
-    for (size_t i = 0; i < bit_count_high(mask); i++) {
+    assert(row < csv->row_count);
+    for (size_t i = 0; i < csv->columns.count; i++) {
         values[i] = csv->columns.data[i].data[row];
     }
+}
 
-    return true;
+void csv_get_row_array(const CSV *const csv, size_t row, size_t ncols, const char *const col_names[ncols], const char *values[ncols])
+{
+    assert(row < csv->row_count && ncols < csv->columns.count);
+
+    for (size_t i = 0; i < ncols; i++) {
+        struct _CSV_Column *col = NULL;
+        for (size_t j = 0; j < csv->columns.count; j++) {
+            if (strcmp(csv->columns.data[j].id, col_names[i]) == 0) {
+                col = &csv->columns.data[j];
+            }
+        }
+        assert(col != NULL && "Column name not present in CSV");
+        values[i] = col->data[row];
+    }
+}
+
+void csv_edit_row_array(const CSV *const csv, size_t row, size_t ncols, const char *const col_names[ncols], const char *values[ncols])
+{
+    assert(row < csv->row_count && ncols < csv->columns.count);
+
+    for (size_t i = 0; i < ncols; i++) {
+        struct _CSV_Column *col = NULL;
+        for (size_t j = 0; j < csv->columns.count; j++) {
+            if (strcmp(csv->columns.data[j].id, col_names[i]) == 0) {
+                col = &csv->columns.data[j];
+            }
+        }
+        assert(col != NULL && "Column not found in CSV");
+        free(col->data[row]);
+        col->data[row] = strdup(values[i]);
+        assert(col->data[row] != NULL);
+    }
 }
 
 void csv_fprint(const CSV *const csv, FILE *const context)
@@ -127,7 +199,7 @@ void csv_fprint(const CSV *const csv, FILE *const context)
 
         for (j = 0; j + 1 < csv->columns.count; j++) {
             data = csv->columns.data[j].data[i];
-            if (data) {
+            if (data != NULL) {
                 fprintf(context, "%s", data);
             }
             fprintf(context, ",");
@@ -137,20 +209,6 @@ void csv_fprint(const CSV *const csv, FILE *const context)
             fprintf(context, "%s", data);
         }
         fputc('\n', context);
-    }
-}
-
-const char *csv_strerror(void)
-{
-    switch (csv_status.c) {
-        case CSV_Status_Ok:
-            return "No error occurred";
-        case CSV_Status_Libc_Err:
-            return strerror(errno);
-        case CSV_Status_Logic_Err:
-            return csv_status.msg;
-        default:
-            assert(false && "unreachable");
     }
 }
 

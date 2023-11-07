@@ -4,7 +4,7 @@
 
 #include "common.h"
 
-char *read_to_string(const char *filename)
+char *read_to_cstr(const char *filename)
 {
     char *contents = NULL;
     FILE *fp = fopen(filename, "r");
@@ -17,7 +17,7 @@ char *read_to_string(const char *filename)
     size_t total = 0;
     while ((bytes = fread(buf, 1, 1024, fp)) != 0) {
         total += bytes;
-        contents = realloc(contents, total);
+        contents = realloc(contents, total + 1);
         if (contents == NULL) {
             goto finally;
         }
@@ -33,6 +33,7 @@ finally:
     if (fp != NULL) {
         fclose(fp);
     }
+    contents[total] = '\0';
     return contents;
 }
 
@@ -53,4 +54,13 @@ size_t bit_count_high(uint32_t bits)
         }
     }
     return count;
+}
+
+uint32_t powu32(uint32_t a, uint32_t b)
+{
+    uint32_t res = 1;
+    for (uint32_t i = 0; i < b; i++) {
+        res *= a;
+    }
+    return res;
 }
