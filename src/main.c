@@ -108,11 +108,6 @@ void test8(void)
     free(cstr);
 }
 
-void test9(void)
-{
-
-}
-
 int main(void)
 {
     test8();
