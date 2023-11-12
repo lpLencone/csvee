@@ -98,9 +98,13 @@ void test8(void)
     char *const cstr = read_to_cstr("bin/filename.csv");
     CSV *csv = csv_from_cstr(cstr);
 
-    const char *col_names[] = {"column", "faggot", "bacdef"};
-    const char *values[] = {"majeet", "esphing", "marcone"};
-    csv_edit_row_array(csv, 1, 3, col_names, values);
+    // const char *col_names[] = {"column", "faggot", "bacdef"};
+    // const char *values[] = {"majeet", "esphing", "marcone"};
+    // csv_edit_row_array(csv, 1, 3, col_names, values);
+
+    csv_edit_row_array(csv, 1, 3, 
+            (const char *[3]){"column", "faggot", "bacdef"}, 
+            (const char *[3]){"majeet", "esphing", "marcone"});
 
     csv_print(csv);
 
